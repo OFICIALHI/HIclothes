@@ -6,66 +6,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI — Administração</title>
   <style>
-    :root {
-      color-scheme: dark;
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #f5f5f5;
-    }
-
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      padding: 32px 18px;
+      padding: 24px 16px;
+      background: #111;
+      color: #f5f5f5;
+      font-family: Arial, sans-serif;
     }
 
-    main {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
+    main { max-width: 1000px; margin: 0 auto; }
 
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
       border-bottom: 1px solid #333;
-      padding-bottom: 20px;
+      padding-bottom: 18px;
+      gap: 12px;
     }
 
-    h1 {
-      margin: 0;
-      letter-spacing: 3px;
-    }
+    h1 { margin: 0; letter-spacing: 3px; }
+    h2 { margin-top: 0; }
+    .muted { color: #aaa; font-size: 14px; }
 
-    .tag {
-      color: #b7b7b7;
-      font-size: 13px;
-    }
-
-    .notice {
+    section {
       margin-top: 24px;
-      padding: 18px;
-      border: 1px solid #444;
-      border-radius: 12px;
+      padding: 20px;
       background: #1b1b1b;
-      line-height: 1.6;
+      border: 1px solid #333;
+      border-radius: 12px;
     }
 
-    .status {
-      display: inline-block;
-      border: 1px solid #777;
-      border-radius: 20px;
-      padding: 5px 10px;
-      font-size: 12px;
-      margin-bottom: 12px;
+    input, button {
+      font: inherit;
+      padding: 12px;
+      border-radius: 8px;
     }
 
-    footer {
-      margin-top: 36px;
-      color: #999;
-      font-size: 12px;
+    input {
+      width: 100%;
+      margin: 8px 0 12px;
+      background: #111;
+      border: 1px solid #555;
+      color: white;
+    }
+
+    button {
+      cursor: pointer;
+      border: 0;
+      background: white;
+      color: #111;
+      font-weight: bold;
+    }
+
+    button:disabled { opacity: .6; cursor: wait; }
+
+    .error { color: #ff9999; }
+    .success { color: #9fe0aa; }
+
+    .order {
+      border-top: 1px solid #444;
+      padding: 16px 0;
+      overflow-wrap: anywhere;
+    }
+
+    .order:first-child { border-top: 0; }
+    .order p { margin: 6px 0; }
+    .hidden { display: none; }
+
+    @media (min-width: 600px) {
+      .login-row { display: flex; gap: 10px; align-items: end; }
+      .login-row input { flex: 1; }
+      .login-row button { margin-bottom: 12px; }
     }
   </style>
 </head>
@@ -74,27 +88,166 @@
     <header>
       <div>
         <h1>HI</h1>
-        <p class="tag">Painel de administração</p>
+        <p class="muted">Painel de administração</p>
       </div>
-      <span class="tag">Loja HI</span>
+      <span class="muted">Modo de teste</span>
     </header>
 
-    <section class="notice">
-      <span class="status">Configuração em curso</span>
-      <h2>Gestão de encomendas</h2>
-      <p>
-        Este painel está a ser preparado. As encomendas só serão
-        apresentadas depois de a autenticação e o acesso à base de
-        dados estarem devidamente protegidos.
-      </p>
-      <p>
-        Os pagamentos continuam em modo de teste.
-      </p>
+    <section id="login">
+      <h2>Acesso privado</h2>
+      <p class="muted">Introduz a palavra-passe de administração.</p>
+      <form id="login-form">
+        <label for="password">Palavra-passe</label>
+        <div class="login-row">
+          <input id="password" type="password" autocomplete="current-password"
+            required maxlength="1024">
+          <button id="login-button" type="submit">Entrar</button>
+        </div>
+      </form>
+      <p id="login-message" role="status" aria-live="polite"></p>
     </section>
 
-    <footer>
-      HI · Administração · Acesso restrito a configurar
-    </footer>
+    <section id="dashboard" class="hidden">
+      <h2>Encomendas</h2>
+      <p id="status" class="muted" role="status" aria-live="polite"></p>
+      <button id="refresh" type="button">Atualizar</button>
+      <div id="orders"></div>
+    </section>
   </main>
+
+  <script>
+    const loginSection = document.getElementById("login");
+    const dashboard = document.getElementById("dashboard");
+    const loginForm = document.getElementById("login-form");
+    const passwordInput = document.getElementById("password");
+    const loginButton = document.getElementById("login-button");
+    const loginMessage = document.getElementById("login-message");
+    const status = document.getElementById("status");
+    const ordersContainer = document.getElementById("orders");
+
+    function showLogin(message = "") {
+      dashboard.classList.add("hidden");
+      loginSection.classList.remove("hidden");
+      loginMessage.textContent = message;
+      passwordInput.value = "";
+    }
+
+    function euro(cents, currency) {
+      return new Intl.NumberFormat("pt-PT", {
+        style: "currency",
+        currency: String(currency || "EUR").toUpperCase()
+      }).format(Number(cents) / 100);
+    }
+
+    async function loadOrders() {
+      status.textContent = "A carregar encomendas…";
+      ordersContainer.replaceChildren();
+
+      try {
+        const response = await fetch("/api/admin/orders", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "Accept": "application/json" }
+        });
+
+        if (response.status === 401) {
+          showLogin("A sessão terminou. Volta a iniciar sessão.");
+          return;
+        }
+
+        if (!response.ok) throw new Error("Falha ao consultar encomendas.");
+
+        const data = await response.json();
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+
+        if (orders.length === 0) {
+          status.textContent = "Ainda não existem encomendas.";
+          return;
+        }
+
+        status.textContent = `${orders.length} encomenda(s) apresentadas.`;
+
+        for (const order of orders) {
+          const article = document.createElement("article");
+          article.className = "order";
+
+          const heading = document.createElement("h3");
+          heading.textContent = `Encomenda ${order.order_ref || ""}`;
+          article.appendChild(heading);
+
+          const details = [
+            `Estado do pagamento: ${order.payment_status || "desconhecido"}`,
+            `Estado de preparação: ${order.fulfillment_status || "desconhecido"}`,
+            `Total: ${euro(order.total_amount, order.currency)}`,
+            `País de envio: ${order.shipping_country || "não indicado"}`,
+            `Data: ${order.created_at || "não indicada"}`
+          ];
+
+          for (const text of details) {
+            const p = document.createElement("p");
+            p.textContent = text;
+            article.appendChild(p);
+          }
+
+          const itemsHeading = document.createElement("p");
+          itemsHeading.textContent = "Artigos:";
+          article.appendChild(itemsHeading);
+
+          for (const item of (Array.isArray(order.items) ? order.items : [])) {
+            const p = document.createElement("p");
+            p.textContent =
+              `${item.product_name} × ${item.quantity} — ` +
+              `${euro(item.unit_amount, order.currency)} por unidade`;
+            article.appendChild(p);
+          }
+
+          ordersContainer.appendChild(article);
+        }
+      } catch {
+        status.textContent =
+          "Não foi possível carregar as encomendas. Tenta novamente.";
+      }
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      loginButton.disabled = true;
+      loginMessage.className = "";
+      loginMessage.textContent = "A verificar…";
+
+      try {
+        const response = await fetch("/api/admin/login", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({ password: passwordInput.value })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          showLogin(data.error || "Não foi possível iniciar sessão.");
+          return;
+        }
+
+        loginSection.classList.add("hidden");
+        dashboard.classList.remove("hidden");
+        loginMessage.textContent = "";
+        passwordInput.value = "";
+        await loadOrders();
+      } catch {
+        showLogin("Erro de ligação. Tenta novamente.");
+      } finally {
+        loginButton.disabled = false;
+      }
+    });
+
+    document.getElementById("refresh").addEventListener("click", loadOrders);
+  </script>
 </body>
 </html>
