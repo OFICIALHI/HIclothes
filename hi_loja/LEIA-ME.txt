@@ -1,0 +1,32 @@
+HI — loja demonstrativa com Stripe Checkout e Cloudflare Pages
+
+ESTADO
+- Site responsivo, catálogo de demonstração e carrinho.
+- Endpoint server-side /api/checkout cria uma sessão Stripe Checkout.
+- Os preços são validados no servidor; o browser não decide o preço cobrado.
+- Aceita endereços de envio em Espanha e Portugal nesta configuração.
+- Não inclui ainda gestão de stock, webhook de pagamento, emails de confirmação, faturação ou política legal pronta para publicar.
+- Produtos e preços são exemplos; edite-os antes de usar.
+
+PUBLICAÇÃO ECONÓMICA (Cloudflare Pages + GitHub)
+1. Descompacte este ZIP.
+2. Crie uma conta GitHub e um repositório novo, por exemplo `hi-loja`.
+3. Carregue `index.html` e a pasta `functions` para a raiz do repositório (a pasta `functions` tem de ficar na raiz).
+4. Em Cloudflare, abra Workers & Pages > Create > Pages > Connect to Git e ligue o repositório.
+5. Para um site HTML estático, deixe o comando de build vazio e defina o diretório de saída como ` / ` não é válido; use a raiz do repositório (normalmente `.` se o painel o aceitar). Se o painel pedir diretório de saída, confirme a configuração atual da Cloudflare Pages para um projeto sem build.
+6. Depois do primeiro deploy, abra Settings > Variables and Secrets (ou Functions > Environment Variables, conforme a interface atual) e adicione `STRIPE_SECRET_KEY` como SECRET com a chave de teste Stripe `sk_test_...`.
+7. Faça redeploy. Teste o checkout com os cartões de teste da documentação Stripe; não use pagamentos reais enquanto estiver em modo de teste.
+8. Antes do lançamento, troque para a chave live `sk_live_...` e guarde-a apenas como Secret na Cloudflare. Nunca a escreva no HTML, no GitHub ou em mensagens.
+9. Em Stripe Dashboard > Payment methods, ativa os métodos de pagamento que a conta pode aceitar. O Checkout pode mostrar os métodos compatíveis com a conta, país e moeda.
+10. Configure portes na Stripe: crie uma Shipping Rate e adicione o ID `shr_...` como variável `STRIPE_SHIPPING_RATE_ID` na Cloudflare. Sem isso, o checkout não cobra portes.
+11. Substitua os produtos no `index.html` E no catálogo em `functions/api/checkout.js`; mantenha os IDs iguais. Os preços em `amount` estão em cêntimos: 3990 = 39,90 €.
+12. Adicione email/contactos reais, imagens e tamanhos; configure regras de envio, devoluções, privacidade, cookies, impostos e faturação antes de aceitar clientes.
+
+PAGAMENTOS EM ESPANHA
+- Stripe Checkout é uma página de pagamento alojada pela Stripe.
+- A disponibilidade de cartões, Apple Pay/Google Pay, Bizum e outros métodos depende da conta, elegibilidade e configurações no Dashboard.
+- As comissões dependem do método e do tipo de cartão. Confirme os preços atuais na página oficial Stripe Espanha.
+- MB WAY/Multibanco são métodos associados sobretudo a Portugal; não assumas que aparecem numa conta espanhola.
+
+IMPORTANTE ANTES DE VENDER
+Este é um ponto de partida técnico, não uma loja pronta para produção. O código não diminui stock nem processa webhooks para validar pedidos pagos. Não envie produtos com base apenas na página de sucesso do navegador: confirme o pagamento no Dashboard Stripe ou implemente um webhook Stripe assinado. Também precisas de cumprir as regras fiscais e de comércio eletrónico aplicáveis em Espanha/UE, incluindo identificação do vendedor, preços totais, envio, devoluções/desistência, garantia, privacidade e cookies. Procure aconselhamento profissional para a situação concreta.
